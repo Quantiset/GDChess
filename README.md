@@ -1,2 +1,1 @@
-# GDChess
-Chess algorithmn completely made in GDScript
+# Chess-Bot
