@@ -27,9 +27,6 @@ margin_bottom = 256.0
 mouse_filter = 2
 texture = ExtResource( 2 )
 stretch_mode = 2
-__meta__ = {
-"_edit_use_anchors_": false
-}
 
 [node name="Tiles2" type="TextureRect" parent="Board"]
 modulate = Color( 0.72549, 0.576471, 0.345098, 1 )

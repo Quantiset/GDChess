@@ -4,5 +4,5 @@
 
 [node name="BlackKnight" instance=ExtResource( 1 )]
 
-[node name="Sprite" parent="." index="0"]
+[node name="Sprite" parent="." index="1"]
 region_rect = Rect2( 135, 45, 45, 45 )

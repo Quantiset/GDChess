@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=2]
 
 [ext_resource path="res://Assets/Chess_Pieces_Sprite.svg" type="Texture" id=1]
-[ext_resource path="res://Scenes/Pieces/Piece.gd" type="Script" id=2]
+[ext_resource path="res://Script/Piece.gd" type="Script" id=2]
 [ext_resource path="res://Scenes/RedOutline.tscn" type="PackedScene" id=3]
 
 [sub_resource type="RectangleShape2D" id=1]

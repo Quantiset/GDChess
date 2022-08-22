@@ -17,7 +17,7 @@ _global_script_classes=[ {
 "base": "Area2D",
 "class": "Piece",
 "language": "GDScript",
-"path": "res://Scenes/Pieces/Piece.gd"
+"path": "res://Script/Piece.gd"
 } ]
 _global_script_class_icons={
 "Board": "",
