@@ -174,7 +174,7 @@ func _piece_gui_input(input: InputEvent, square: int):
 		if input.is_pressed():
 			match input.button_index:
 				BUTTON_LEFT:
-					squares[piece_selected].move_to(square)
+					squares[piece_selected].move(Move.new(square, square))
 	elif piece_selected != -1:
 		squares[piece_selected]._unhandled_input(input)
 
@@ -188,3 +188,6 @@ func board_to_global(square: int):
 		(square / 8) * 48 + 24
 	);
 
+func delete_square(to_square):
+	squares[to_square].queue_free()
+	squares[to_square] = null

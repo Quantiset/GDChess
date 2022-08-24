@@ -4,9 +4,9 @@ class_name Piece
 var piece_type
 var color_type
 var square setget set_square
-
 onready var board = get_parent()
 onready var direction_offsets: Array = board.direction_offsets
+var direction_length = 15
 
 var moves: Array
 var is_pressed := false
@@ -18,14 +18,24 @@ func _ready():
 		direction_offsets = [9, -9, 7, -7]
 	elif piece_type == board.Pieces.Rook:
 		direction_offsets = [1, -1, 8, -8]
+	elif piece_type == board.Pieces.Pawn:
+		direction_offsets = [(-8 if color_type == 1 else 8)]
+		direction_length = 2
+	elif piece_type == board.Pieces.King:
+		direction_length = 1
 
 func _unhandled_input(event):
 	if event is InputEventMouseButton:
 		if event.pressed:
 			match event.button_index:
+				BUTTON_RIGHT:
+					if is_pressed: move(board.Move.new(square, square))
+				
 				BUTTON_LEFT:
 					
-					if board.piece_selected == square: continue
+					if board.piece_selected != -1 and \
+						board.squares[board.piece_selected].is_pressed: 
+						continue
 					
 					if not is_pressed:
 						if Rect2(
@@ -35,7 +45,8 @@ func _unhandled_input(event):
 							board.piece_selected = square
 							is_pressed = true
 							$RedOutline.hide()
-					else: move_to(square)
+							get_tree().set_input_as_handled()
+					else: move(board.Move.new(square, square))
 	
 	elif event is InputEventMouseMotion and is_pressed:
 		position = get_global_mouse_position()
@@ -62,7 +73,7 @@ func request_moves():
 	var moves = []
 	
 	if piece_type == board.Pieces.Knight:
-		for jump in [17, 15, 10, 6, -17, -15, -10, 6]:
+		for jump in [17, 15, 10, 6, -17, -15, -10, -6]:
 			var to_square: int = square + jump
 			
 			if to_square >= 0 and to_square <= board.board_size - 1:
@@ -71,17 +82,31 @@ func request_moves():
 		return moves
 	
 	for direction_offset in direction_offsets:
-		for step_idx in range(board.squares_until_edge[square][board.direction_to_idx[direction_offset]]):
-			step_idx += 1
+		for step_idx in range(1, board.squares_until_edge[square][board.direction_to_idx[direction_offset]]+1):
 			var to_square: int = square + direction_offset * step_idx
 			
-			if board.squares[to_square] != null: break
+			if step_idx > direction_length: break
+			if board.squares[to_square] != null: 
+				if board.squares[to_square].color_type != color_type and not piece_type == board.Pieces.Pawn:
+					moves.append(board.Move.new(square, to_square))
+				break
 			
 			moves.append(board.Move.new(square, to_square))
 	
 	return moves
 
-func move_to(to_square: int):
+func move(move):
+	
+	var to_square: int = move.end_pos
+	
+	if to_square != square:
+		if board.squares[to_square] != null:
+			board.delete_square(to_square)
+			board.squares[square] = null
+		
+		if piece_type == board.Pieces.Pawn:
+			direction_length = 1
+	
 	is_pressed = false
 	board.piece_selected = -1
 	_on_Piece_mouse_exited()
