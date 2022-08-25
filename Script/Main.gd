@@ -42,21 +42,21 @@ var fenToVar = {
 }
 
 var fenToInt = {
-	"p": 1,
-	"k": 2,
-	"q": 3,
+	"k": 1,
+	"q": 2,
+	"b": 3,
 	"n": 4,
 	"r": 5,
-	"b": 6,
+	"p": 6,
 }
 
 enum Pieces {
-	Pawn = 1
-	King = 2
-	Queen = 3
+	King = 1
+	Queen = 2
+	Bishop = 3
 	Knight = 4
 	Rook = 5
-	Bishop = 6
+	Pawn = 6
 }
 
 var piece_selected = -1
@@ -66,7 +66,6 @@ var squares_until_edge := {}
 var outlines := []
 
 var squares := {}
-
 
 func _ready():
 	setup_squares()
@@ -150,15 +149,12 @@ func setup_pieces():
 			var is_white = not bool(piece == piece.to_lower());
 			piece = piece.to_lower();
 			
-			if (is_white):
-				pieceScene = get("white"+fenToVar[piece])
-			else:
-				pieceScene = get("black"+fenToVar[piece])
+			pieceScene = preload("res://Scenes/Pieces/Piece.tscn")
 			var piece_instance = pieceScene.instance()
 			
 			piece_instance.position = board_to_global(square);
-			piece_instance.piece_type = fenToInt[piece];
 			piece_instance.color_type = 1 if is_white else 0;
+			piece_instance.set_type(fenToInt[piece]);
 			piece_instance.square = square;
 			piece_instance.connect("changed_square", self, "_square_changed_square", [piece_instance])
 			
@@ -181,6 +177,19 @@ func _piece_gui_input(input: InputEvent, square: int):
 func _square_changed_square(old: int, to: int, piece):
 	squares[old] = null
 	squares[to] = piece
+	
+	if piece.color_type == 0: return
+	
+	var occupied_squares := []
+	for square in squares:
+		if squares[square] != null and squares[square].color_type == 0: 
+			occupied_squares.append(squares[square])
+	var mpiece = occupied_squares[randi()%occupied_squares.size()]
+	var moves = mpiece.request_moves()
+	while moves.size() == 0:
+		mpiece = occupied_squares[randi()%occupied_squares.size()]
+		moves = mpiece.request_moves()
+	mpiece.move(moves[randi()%moves.size()])
 
 func board_to_global(square: int):
 	return $Board.position + Vector2(
