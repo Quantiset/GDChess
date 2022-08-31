@@ -19,19 +19,6 @@ class Move:
 var fenArray := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
 var board_size = 64
 
-var blackKnight = preload("res://Scenes/Pieces/BlackKnight.tscn");
-var whiteKnight = preload("res://Scenes/Pieces/WhiteKnight.tscn");
-var blackBishop = preload("res://Scenes/Pieces/BlackBishop.tscn");
-var whiteBishop = preload("res://Scenes/Pieces/WhiteBishop.tscn");
-var blackPawn = preload("res://Scenes/Pieces/BlackPawn.tscn");
-var whitePawn = preload("res://Scenes/Pieces/WhitePawn.tscn");
-var blackQueen = preload("res://Scenes/Pieces/BlackQueen.tscn");
-var whiteQueen = preload("res://Scenes/Pieces/WhiteQueen.tscn");
-var blackKing = preload("res://Scenes/Pieces/BlackKing.tscn");
-var whiteKing = preload("res://Scenes/Pieces/WhiteKing.tscn");
-var whiteRook = preload("res://Scenes/Pieces/WhiteRook.tscn");
-var blackRook = preload("res://Scenes/Pieces/BlackRook.tscn");
-
 var fenToVar = {
 	"p": "Pawn",
 	"k": "King",
@@ -50,6 +37,15 @@ var fenToInt = {
 	"p": 6,
 }
 
+var evals := {
+	Pieces.King: 9999999,
+	Pieces.Queen: 900,
+	Pieces.Bishop: 300,
+	Pieces.Knight: 300,
+	Pieces.Rook: 500,
+	Pieces.Pawn: 100,
+}
+
 enum Pieces {
 	King = 1
 	Queen = 2
@@ -59,9 +55,11 @@ enum Pieces {
 	Pawn = 6
 }
 
+var current_turn := 1
 var piece_selected = -1
 var direction_offsets = [8, -8, -1, 1, 7, -7, 9, -9]
 var direction_to_idx = {8: 0, -8: 1, -1: 2, 1: 3, 7: 4, -7: 5, 9: 6, -9: 7}
+var castle_flags := [[false, false],[false, false]]
 var squares_until_edge := {}
 var outlines := []
 
@@ -70,6 +68,7 @@ var squares := {}
 func _ready():
 	setup_squares()
 	setup_pieces()
+	print(evaluate_board(1)-9999999)
 
 func setup_squares():
 	for square in range(board_size):
@@ -157,8 +156,16 @@ func setup_pieces():
 			piece_instance.set_type(fenToInt[piece]);
 			piece_instance.square = square;
 			piece_instance.connect("changed_square", self, "_square_changed_square", [piece_instance])
+			piece_instance.connect("physical_move", self, "_player_moved", [piece_instance])
 			
 			squares[square] = piece_instance
+			
+			if piece.to_lower() == "r":
+				var row_value: int = board_size if piece_instance.color_type == 1 else 8
+				if square == row_value - 1:
+					castle_flags[piece_instance.color_type][1] = true
+				if square == row_value - 8:
+					castle_flags[piece_instance.color_type][0] = true
 			
 			add_child(piece_instance);
 		
@@ -170,7 +177,7 @@ func _piece_gui_input(input: InputEvent, square: int):
 		if input.is_pressed():
 			match input.button_index:
 				BUTTON_LEFT:
-					squares[piece_selected].move(Move.new(square, square))
+					squares[piece_selected].move(Move.new(square, square), true)
 	elif piece_selected != -1:
 		squares[piece_selected]._unhandled_input(input)
 
@@ -178,25 +185,49 @@ func _square_changed_square(old: int, to: int, piece):
 	squares[old] = null
 	squares[to] = piece
 	
-	if piece.color_type == 0: return
-	
-	var occupied_squares := []
-	for square in squares:
-		if squares[square] != null and squares[square].color_type == 0: 
-			occupied_squares.append(squares[square])
-	var mpiece = occupied_squares[randi()%occupied_squares.size()]
-	var moves = mpiece.request_moves()
-	while moves.size() == 0:
-		mpiece = occupied_squares[randi()%occupied_squares.size()]
-		moves = mpiece.request_moves()
-	mpiece.move(moves[randi()%moves.size()])
+#	yield(get_tree().create_timer(0.1), "timeout")
+#
+#	var occupied_squares := []
+#	for square in squares:
+#		if squares[square] != null and squares[square].color_type == current_turn: 
+#			occupied_squares.append(squares[square])
+#	var mpiece = occupied_squares[randi()%occupied_squares.size()]
+#	var moves = mpiece.request_moves()
+#	var i := 0
+#	while moves.size() == 0:
+#		mpiece = occupied_squares[randi()%occupied_squares.size()]
+#		moves = mpiece.request_moves()
+#		i += 1
+#		if i > 200:
+#			return
+#	mpiece.move(moves[randi()%moves.size()])
+#
+#	current_turn += 1
+#	current_turn = current_turn % 2
+
+func _player_moved(move: Move):
+	pass
 
 func board_to_global(square: int):
 	return $Board.position + Vector2(
-		(square % 8 + 1) * 48 - 24,
+		(square % 8) * 48 + 24,
 		(square / 8) * 48 + 24
 	);
 
 func delete_square(to_square):
 	squares[to_square].queue_free()
 	squares[to_square] = null
+
+func evaluate_board(color: int) -> int:
+	var eval: int
+	
+	for piece in squares.values():
+		if piece == null: continue
+		if piece.color_type != color: continue
+		
+		eval += evals[piece.piece_type]
+	
+	return eval
+
+func evaluate_move(move: Move):
+	pass

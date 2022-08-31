@@ -12,7 +12,7 @@ var moves: Array
 var is_pressed := false
 
 var row_shifts := {
-	17: 2, 15: 2, 10: 1, 6: 1, -17: -2, -15: -2, -10: -1, -6: -1
+	17: 2, 15: 2, 10: 1, 6: 1, -17: -2, -15: -2, -10: -1, -6: -1, -7: -1, 7: 1, 9: 1, -9: -1, 2: 0, -2: 0
 }
 var knight_offsets = [17, 15, 10, 6, -17, -15, -10, -6]
 
@@ -30,6 +30,8 @@ enum Pieces {
 }
 
 signal changed_square(old, to)
+signal physical_move(move)
+signal moved(move)
 
 func _ready():
 	set_type(piece_type)
@@ -103,8 +105,15 @@ func request_moves():
 			var to_square = square + attack_query
 			if to_square >= 0 and to_square < board.board_size and \
 					squares[to_square] != null and \
-					squares[to_square].color_type != color_type:
+					squares[to_square].color_type != color_type and \
+					is_in_row(attack_query):
 				moves.append(board.Move.new(square, to_square))
+	
+	if piece_type == board.Pieces.King:
+		if board.castle_flags[color_type][1] and is_empty(square + 1, square + 2):
+			moves.append(board.Move.new(square, square + 2))
+		if board.castle_flags[color_type][0] and is_empty(square - 3, square - 1):
+			moves.append(board.Move.new(square, square - 2))
 	
 	for direction_offset in direction_offsets:
 		for step_idx in range(1, board.squares_until_edge[square][board.direction_to_idx[direction_offset]]+1):
@@ -120,29 +129,44 @@ func request_moves():
 	
 	return moves
 
-func move(move):
-	print(move)
+func move(move, physical_move := false):
+	
 	var to_square: int = move.end_pos
-	
-	if piece_type == board.Pieces.Pawn and (
-		square < 8 if color_type == 1 else
-		square > board.board_size - 8 
-	):
-		set_type(board.Pieces.Queen)
-	
-	if to_square != square:
-		if squares[to_square] != null:
-			board.delete_square(to_square)
-			squares[square] = null
-		
-		if piece_type == board.Pieces.Pawn:
-			direction_length = 1
 	
 	is_pressed = false
 	board.piece_selected = -1
 	_on_Piece_mouse_exited()
-	self.square = to_square
 	position = board.board_to_global(to_square)
+	
+	if to_square == square:
+		return
+	
+	if squares[to_square] != null:
+		board.delete_square(to_square)
+		squares[square] = null
+	
+	if piece_type == board.Pieces.Rook:
+		var row_value: int = board.board_size if color_type == 1 else 8
+		board.castle_flags[color_type][1] = square != row_value - 1 and board.castle_flags[color_type][1]
+		board.castle_flags[color_type][0] = square != row_value - 8 and board.castle_flags[color_type][0]
+	elif piece_type == board.Pieces.King:
+		if abs(square - to_square) == 2:
+			var rook_square: int = to_square + 1 if to_square > square else to_square - 2
+			squares[rook_square].move(board.Move.new(rook_square, to_square - 1 if to_square > square else to_square + 1))
+		board.castle_flags[color_type][0] = false
+		board.castle_flags[color_type][1] = false
+	
+	self.square = to_square
+	if physical_move: emit_signal("physical_move", move)
+	emit_signal("moved", move)
+	
+	if piece_type == board.Pieces.Pawn:
+		direction_length = 1
+		if (
+			square < 8 if color_type == 1 else
+			square > board.board_size - 8
+		):
+			set_type(board.Pieces.Queen)
 
 func set_square(val: int):
 	emit_signal("changed_square", square, val)
@@ -173,3 +197,9 @@ func set_type(_piece: int):
 
 func is_in_row(shift: int) -> bool:
 	return (square+shift)/8==square/8+row_shifts[shift]
+
+func is_empty(a: int, b: int = -1):
+	if b == -1: return board.squares[a] == null
+	for i in range(a, b + 1):
+		if board.squares[i] != null: return false
+	return true
