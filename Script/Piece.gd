@@ -32,6 +32,7 @@ enum Pieces {
 signal changed_square(old, to)
 signal physical_move(move)
 signal moved(move)
+signal unmake_move(move)
 
 func _ready():
 	set_type(piece_type)
@@ -109,6 +110,13 @@ func request_moves():
 					squares[to_square].color_type != color_type and \
 					is_in_row(attack_query):
 				moves.append(board.Move.new(square, to_square))
+		
+		if (
+			(square > 7 and square < 15) if color_type == 1 else
+			(square < board.board_size - 7 and square > board.board_size - 15)
+		):
+			moves.append(board.Move.new(square, square + 8 * color_scale, MoveFlags.Promotion))
+			return
 	
 	if piece_type == board.Pieces.King:
 		if board.castle_flags[color_type][1] and is_empty(square + 1, square + 2):
@@ -134,10 +142,11 @@ func move(move, physical_move := false, temporary := false):
 	
 	var to_square: int = move.end_pos
 	
-	is_pressed = false
-	board.piece_selected = -1
-	_on_Piece_mouse_exited()
-	position = board.board_to_global(to_square)
+	if not temporary: 
+		position = board.board_to_global(to_square)
+		is_pressed = false
+		board.piece_selected = -1
+		_on_Piece_mouse_exited()
 	
 	if to_square == square:
 		return
@@ -153,7 +162,8 @@ func move(move, physical_move := false, temporary := false):
 	elif piece_type == board.Pieces.King:
 		if abs(square - to_square) == 2:
 			var rook_square: int = to_square + 1 if to_square > square else to_square - 2
-			squares[rook_square].move(board.Move.new(rook_square, to_square - 1 if to_square > square else to_square + 1))
+			squares[rook_square].square = to_square - 1 if to_square > square else to_square + 1
+			squares[rook_square].position = board.board_to_global(squares[rook_square].square)
 		board.castle_flags[color_type][0] = false
 		board.castle_flags[color_type][1] = false
 	
@@ -161,26 +171,24 @@ func move(move, physical_move := false, temporary := false):
 	if physical_move: emit_signal("physical_move", move)
 	emit_signal("moved", move)
 	
-	if piece_type == board.Pieces.Pawn:
-		direction_length = 1
-		if (
-			square < 8 if color_type == 1 else
-			square > board.board_size - 8
-		):
-			set_type(board.Pieces.Queen)
+#	if move.flags | MoveFlags.Promotion:
+#		set_type(board.Pieces.Queen)
 
 func unmake_move(move):
 	self.square = move.start_pos
+	emit_signal("unmake_move", move)
 	
 	if move.deleted_piece != null:
 		board.undelete_square(move)
 		move.deleted_piece.show()
 	
-	if piece_type == board.Pieces.Pawn and get_row() == (1 + 4 * color_type):
-		direction_length = 2
+	if piece_type == board.Pieces.Pawn:
+		if get_row() == (1 + 4 * color_type):
+			direction_length = 2
+		if move.flags | MoveFlags.Promotion:
+			set_type(board.Pieces.Pawn)
 	
 	position = board.board_to_global(square)
-	print(square)
 
 func set_square(val: int):
 	emit_signal("changed_square", square, val)

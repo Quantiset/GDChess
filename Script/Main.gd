@@ -47,7 +47,7 @@ var fenToInt = {
 }
 
 var evals := {
-	Pieces.King: 9999999,
+	Pieces.King: 99999,
 	Pieces.Queen: 900,
 	Pieces.Bishop: 300,
 	Pieces.Knight: 300,
@@ -64,22 +64,28 @@ enum Pieces {
 	Pawn = 6
 }
 
+var color_to_move := 1
 var current_turn := 1
 var piece_selected = -1
 var direction_offsets = [8, -8, -1, 1, 7, -7, 9, -9]
 var direction_to_idx = {8: 0, -8: 1, -1: 2, 1: 3, 7: 4, -7: 5, 9: 6, -9: 7}
 var castle_flags := [[false, false],[false, false]]
 var squares_until_edge := {}
+var pieces_left := {0: {}, 1: {}}
 var outlines := []
 
 var squares := {}
 
 func _ready():
+	randomize()
 	setup_squares()
 	setup_pieces()
-	print(evaluate_board(1)-9999999)
 
 func setup_squares():
+	for piece in Pieces:
+		for i in range(2):
+			pieces_left[i][Pieces[piece]] = 0
+	
 	for square in range(board_size):
 		squares[square] = null
 	
@@ -166,8 +172,11 @@ func setup_pieces():
 			piece_instance.square = square;
 			piece_instance.connect("changed_square", self, "_square_changed_square", [piece_instance])
 			piece_instance.connect("physical_move", self, "_player_moved", [piece_instance])
+			piece_instance.connect("moved", self, "_piece_moved", [piece_instance])
+			piece_instance.connect("unmake_move", self, "_piece_unmaked_move", [piece_instance])
 			
 			squares[square] = piece_instance
+			pieces_left[piece_instance.color_type][fenToInt[piece]] += 1
 			
 			if piece.to_lower() == "r":
 				var row_value: int = board_size if piece_instance.color_type == 1 else 8
@@ -190,6 +199,12 @@ func _piece_gui_input(input: InputEvent, square: int):
 	elif piece_selected != -1:
 		squares[piece_selected]._unhandled_input(input)
 
+func _piece_moved(move, piece):
+	color_to_move = 1 - color_to_move
+
+func _piece_unmaked_move(move, piece):
+	color_to_move = 1 - color_to_move
+
 func _square_changed_square(old: int, to: int, piece):
 	squares[old] = null
 	squares[to] = piece
@@ -198,28 +213,30 @@ func _player_moved(move: Move, piece):
 	ai_turn(move, piece)
 
 func ai_turn(move: Move, piece):
-	var occupied_squares := []
+	color_to_move = 1
+	
+	var occupied_squares := get_pieces(1-color_to_move)
 	var moves := []
-	for square in squares:
-		if squares[square] != null and squares[square].color_type == 0: 
-			occupied_squares.append(squares[square])
 	for square in occupied_squares:
 		moves.append_array(square.request_moves())
 	
-	var best_eval := 0.0
+	var best_eval := -999.0
 	var best_move = moves[randi()%moves.size()]
 	var best_piece = squares[best_move.start_pos]
+	
+	print(search())
 	for _piece in occupied_squares:
-		for move in _piece.request_moves():
-			var eval = evaluate_move(move, _piece, _piece.color_type)
+		for _move in _piece.request_moves():
+			_piece.move(_move, false, true)
+			var eval = search()
 			if eval > best_eval: 
 				best_eval = eval
-				best_move = move
+				best_move = _move
 				best_piece = _piece
-	if best_piece: 
-		best_piece.move(best_move)
-		pass
-		
+			_piece.unmake_move(_move)
+	
+	best_piece.move(best_move)
+	
 
 func board_to_global(square: int):
 	return $Board.position + Vector2(
@@ -228,38 +245,67 @@ func board_to_global(square: int):
 	);
 
 func delete_square(to_square, move = null):
-	squares[to_square].hide()
+	var piece = squares[to_square]
 	squares[to_square] = null
-	if move: move.deleted_piece = squares[to_square]
+	piece.hide()
+	if move: 
+		move.deleted_piece = piece
+		pieces_left[piece.color_type][piece.piece_type] -= 1
 
 func undelete_square(move):
-	move.deleted_piece.show()
-	squares[move.end_pos] = move.deleted_piece
+	var piece = move.deleted_piece
+	pieces_left[piece.color_type][piece.piece_type] += 1
+	piece.show()
+	squares[move.end_pos] = piece
 
-func evaluate_board(color: int) -> int:
-	var eval: int
-	
-	for piece in squares.values():
-		if piece == null: continue
-		if piece.color_type != color: continue
-		
-		eval += evals[piece.piece_type]
-	
-	return eval
+func evaluate_color(color: int) -> int:
+	return (
+		pieces_left[color][Pieces.Queen] * evals[Pieces.Queen] + 
+		pieces_left[color][Pieces.Pawn] * evals[Pieces.Pawn] + 
+		pieces_left[color][Pieces.Knight] * evals[Pieces.Knight] + 
+		pieces_left[color][Pieces.Bishop] * evals[Pieces.Bishop] + 
+		pieces_left[color][Pieces.Rook] * evals[Pieces.Rook] +
+		pieces_left[color][Pieces.King] * evals[Pieces.King]
+	)
 
-func evaluate_move(move: Move, piece, color_type, depth: int = 2) -> float:
-	var eval: float = evals[squares[move.end_pos].piece_type] if move.is_capture(squares) else 0.0
-	if depth == 1: return eval
+func evaluate() -> int:
+	var white_eval: int = evaluate_color(1)
+	var black_eval: int = evaluate_color(0)
 	
-	piece.move(move)
+	var eval: int = white_eval - black_eval
 	
-	for sec_piece in get_pieces(1-color_type):
-		for sec_move in sec_piece.request_moves():
-			evaluate_move(sec_move, sec_piece, 1-color_type, depth - 1)
+	return eval * (2*color_to_move-1)
+
+var searches := 0
+func search(depth: int = 1) -> int:
+	searches += 1
 	
-	piece.unmake_move(move)
+	if depth == 1: return evaluate()
 	
-	return eval
+	var best_eval: int = -999999
+	for piece in get_pieces(color_to_move):
+		for move in piece.request_moves():
+			piece.move(move, false, true)
+			best_eval = max(best_eval, -search(depth - 1))
+			piece.unmake_move(move)
+	
+	return best_eval
+
+#func search(depth: int = 3, alpha: int = -9999999, beta: int = 99999999) -> int:
+#	searches += 1
+#
+#	if depth == 1: return evaluate()
+#
+#	for piece in get_pieces(color_to_move):
+#		for move in piece.request_moves():
+#			piece.move(move, false, true)
+#			var eval = -search(depth - 1, -beta, -alpha)
+#			piece.unmake_move(move)
+#			if eval >= beta:
+#				return beta
+#			alpha = max(alpha, eval)
+#
+#	return alpha
 
 func get_pieces(color_type) -> Array:
 	var pieces := []
