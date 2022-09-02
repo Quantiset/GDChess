@@ -81,6 +81,7 @@ func _on_Piece_mouse_exited():
 	
 	$RedOutline.hide()
 
+onready var MoveFlags = board.Move.Flags
 func request_moves():
 	var moves = []
 	
@@ -129,7 +130,7 @@ func request_moves():
 	
 	return moves
 
-func move(move, physical_move := false):
+func move(move, physical_move := false, temporary := false):
 	
 	var to_square: int = move.end_pos
 	
@@ -142,7 +143,7 @@ func move(move, physical_move := false):
 		return
 	
 	if squares[to_square] != null:
-		board.delete_square(to_square)
+		board.delete_square(to_square, move)
 		squares[square] = null
 	
 	if piece_type == board.Pieces.Rook:
@@ -167,6 +168,19 @@ func move(move, physical_move := false):
 			square > board.board_size - 8
 		):
 			set_type(board.Pieces.Queen)
+
+func unmake_move(move):
+	self.square = move.start_pos
+	
+	if move.deleted_piece != null:
+		board.undelete_square(move)
+		move.deleted_piece.show()
+	
+	if piece_type == board.Pieces.Pawn and get_row() == (1 + 4 * color_type):
+		direction_length = 2
+	
+	position = board.board_to_global(square)
+	print(square)
 
 func set_square(val: int):
 	emit_signal("changed_square", square, val)
@@ -194,6 +208,9 @@ func set_type(_piece: int):
 	else:
 		direction_offsets = [8, -8, -1, 1, 7, -7, 9, -9]
 		direction_length = 15
+
+func get_row() -> int:
+	return square / 8
 
 func is_in_row(shift: int) -> bool:
 	return (square+shift)/8==square/8+row_shifts[shift]

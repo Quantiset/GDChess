@@ -3,15 +3,16 @@ class_name Board
 
 class Move:
 	enum Flags {
-		Standard,
-		Capture,
-		Promotion,
-		EnPassant,
-		PawnInitial
+		Standard = 1 << 1,
+		Capture = 1 << 2,
+		Promotion = 1 << 3,
+		EnPassant = 1 << 4,
+		PawnInitial = 1 << 5
 	}
 	
 	var start_pos: int
 	var end_pos: int
+	var deleted_piece
 	
 	var flags: int = Flags.Standard
 	
@@ -25,7 +26,7 @@ class Move:
 	
 
 var fenArray := "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"
-var board_size = 64
+var board_size := 64
 
 var fenToVar = {
 	"p": "Pawn",
@@ -192,47 +193,33 @@ func _piece_gui_input(input: InputEvent, square: int):
 func _square_changed_square(old: int, to: int, piece):
 	squares[old] = null
 	squares[to] = piece
-	
-#	yield(get_tree().create_timer(0.1), "timeout")
-#
-#	var occupied_squares := []
-#	for square in squares:
-#		if squares[square] != null and squares[square].color_type == current_turn: 
-#			occupied_squares.append(squares[square])
-#	var mpiece = occupied_squares[randi()%occupied_squares.size()]
-#	var moves = mpiece.request_moves()
-#	var i := 0
-#	while moves.size() == 0:
-#		mpiece = occupied_squares[randi()%occupied_squares.size()]
-#		moves = mpiece.request_moves()
-#		i += 1
-#		if i > 200:
-#			return
-#	mpiece.move(moves[randi()%moves.size()])
-#
-#	current_turn += 1
-#	current_turn = current_turn % 2
 
 func _player_moved(move: Move, piece):
 	ai_turn(move, piece)
 
 func ai_turn(move: Move, piece):
 	var occupied_squares := []
+	var moves := []
 	for square in squares:
 		if squares[square] != null and squares[square].color_type == 0: 
 			occupied_squares.append(squares[square])
+	for square in occupied_squares:
+		moves.append_array(square.request_moves())
 	
 	var best_eval := 0.0
-	var best_piece = occupied_squares[0]
-	var best_move = best_piece.request_moves()[0]
+	var best_move = moves[randi()%moves.size()]
+	var best_piece = squares[best_move.start_pos]
 	for _piece in occupied_squares:
 		for move in _piece.request_moves():
-			var eval = evaluate_move(move, piece)
+			var eval = evaluate_move(move, _piece, _piece.color_type)
 			if eval > best_eval: 
 				best_eval = eval
 				best_move = move
 				best_piece = _piece
-	if best_piece: best_piece.move(best_move)
+	if best_piece: 
+		best_piece.move(best_move)
+		pass
+		
 
 func board_to_global(square: int):
 	return $Board.position + Vector2(
@@ -240,9 +227,14 @@ func board_to_global(square: int):
 		(square / 8) * 48 + 24
 	);
 
-func delete_square(to_square):
-	squares[to_square].queue_free()
+func delete_square(to_square, move = null):
+	squares[to_square].hide()
 	squares[to_square] = null
+	if move: move.deleted_piece = squares[to_square]
+
+func undelete_square(move):
+	move.deleted_piece.show()
+	squares[move.end_pos] = move.deleted_piece
 
 func evaluate_board(color: int) -> int:
 	var eval: int
@@ -255,10 +247,24 @@ func evaluate_board(color: int) -> int:
 	
 	return eval
 
-func evaluate_move(move: Move, piece, depth: int = 1) -> float:
-	var highest := 0.0
-	if move.is_capture(squares):
-		var high_query: int = evals[squares[move.end_pos].piece_type]
-		if highest < high_query:
-			highest = high_query
-	return highest
+func evaluate_move(move: Move, piece, color_type, depth: int = 2) -> float:
+	var eval: float = evals[squares[move.end_pos].piece_type] if move.is_capture(squares) else 0.0
+	if depth == 1: return eval
+	
+	piece.move(move)
+	
+	for sec_piece in get_pieces(1-color_type):
+		for sec_move in sec_piece.request_moves():
+			evaluate_move(sec_move, sec_piece, 1-color_type, depth - 1)
+	
+	piece.unmake_move(move)
+	
+	return eval
+
+func get_pieces(color_type) -> Array:
+	var pieces := []
+	for square_pos in squares:
+		var square = squares[square_pos]
+		if square != null and square.color_type == color_type: 
+			pieces.append(square)
+	return pieces
