@@ -213,7 +213,6 @@ func _player_moved(move: Move, piece):
 	ai_turn(move, piece)
 
 func ai_turn(move: Move, piece):
-	color_to_move = 1
 	
 	var occupied_squares := get_pieces(1-color_to_move)
 	var moves := []
@@ -224,10 +223,10 @@ func ai_turn(move: Move, piece):
 	var best_move = moves[randi()%moves.size()]
 	var best_piece = squares[best_move.start_pos]
 	
-	print(search())
 	for _piece in occupied_squares:
 		for _move in _piece.request_moves():
 			_piece.move(_move, false, true)
+			color_to_move = 0
 			var eval = search()
 			if eval > best_eval: 
 				best_eval = eval
@@ -235,6 +234,7 @@ func ai_turn(move: Move, piece):
 				best_piece = _piece
 			_piece.unmake_move(_move)
 	
+	print(best_eval)
 	best_piece.move(best_move)
 	
 
@@ -277,7 +277,7 @@ func evaluate() -> int:
 	return eval * (2*color_to_move-1)
 
 var searches := 0
-func search(depth: int = 1) -> int:
+func search(depth: int = 3) -> int:
 	searches += 1
 	
 	if depth == 1: return evaluate()
