@@ -116,7 +116,7 @@ func request_moves():
 			(square < board.board_size - 7 and square > board.board_size - 15)
 		):
 			moves.append(board.Move.new(square, square + 8 * color_scale, MoveFlags.Promotion))
-			return
+			return moves
 	
 	if piece_type == board.Pieces.King:
 		if board.castle_flags[color_type][1] and is_empty(square + 1, square + 2):
@@ -166,6 +166,8 @@ func move(move, physical_move := false, temporary := false):
 			squares[rook_square].position = board.board_to_global(squares[rook_square].square)
 		board.castle_flags[color_type][0] = false
 		board.castle_flags[color_type][1] = false
+	elif piece_type == board.Pieces.Pawn:
+		direction_length = 1
 	
 	self.square = to_square
 	if physical_move: emit_signal("physical_move", move)
@@ -183,10 +185,10 @@ func unmake_move(move):
 		move.deleted_piece.show()
 	
 	if piece_type == board.Pieces.Pawn:
-		if get_row() == (1 + 4 * color_type):
-			direction_length = 2
 		if move.flags | MoveFlags.Promotion:
 			set_type(board.Pieces.Pawn)
+		if get_row() == (1 + 5 * color_type):
+			direction_length = 2
 	
 	position = board.board_to_global(square)
 

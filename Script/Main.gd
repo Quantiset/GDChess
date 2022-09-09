@@ -214,27 +214,29 @@ func _player_moved(move: Move, piece):
 
 func ai_turn(move: Move, piece):
 	
-	var occupied_squares := get_pieces(1-color_to_move)
+	var occupied_squares := get_pieces(0)
 	var moves := []
 	for square in occupied_squares:
 		moves.append_array(square.request_moves())
 	
-	var best_eval := -999.0
+	var board_eval := 9999999999.0
 	var best_move = moves[randi()%moves.size()]
 	var best_piece = squares[best_move.start_pos]
 	
 	for _piece in occupied_squares:
 		for _move in _piece.request_moves():
 			_piece.move(_move, false, true)
-			color_to_move = 0
+			color_to_move = 1
 			var eval = search()
-			if eval > best_eval: 
-				best_eval = eval
+			if eval < board_eval: 
+				board_eval = eval
 				best_move = _move
 				best_piece = _piece
 			_piece.unmake_move(_move)
+			
 	
-	print(best_eval)
+	
+	print(board_eval)
 	best_piece.move(best_move)
 	
 
@@ -277,35 +279,23 @@ func evaluate() -> int:
 	return eval * (2*color_to_move-1)
 
 var searches := 0
-func search(depth: int = 3) -> int:
+
+func search(depth: int = 3, alpha: int = -9999999, beta: int = 9999999) -> int:
 	searches += 1
+
+	if depth == 0: 
+		return evaluate()
 	
-	if depth == 1: return evaluate()
-	
-	var best_eval: int = -999999
 	for piece in get_pieces(color_to_move):
 		for move in piece.request_moves():
 			piece.move(move, false, true)
-			best_eval = max(best_eval, -search(depth - 1))
+			var eval = -search(depth - 1, -beta, -alpha)
 			piece.unmake_move(move)
-	
-	return best_eval
+			if eval >= beta:
+				return beta
+			alpha = max(alpha, eval)
 
-#func search(depth: int = 3, alpha: int = -9999999, beta: int = 99999999) -> int:
-#	searches += 1
-#
-#	if depth == 1: return evaluate()
-#
-#	for piece in get_pieces(color_to_move):
-#		for move in piece.request_moves():
-#			piece.move(move, false, true)
-#			var eval = -search(depth - 1, -beta, -alpha)
-#			piece.unmake_move(move)
-#			if eval >= beta:
-#				return beta
-#			alpha = max(alpha, eval)
-#
-#	return alpha
+	return alpha
 
 func get_pieces(color_type) -> Array:
 	var pieces := []
